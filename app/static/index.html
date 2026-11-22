@@ -233,13 +233,14 @@ async function refresh(flashId) {
   feed.innerHTML = data.reports.map(r => {
     let badges = '';
     if (r.source === 'demo') badges += badge('demo photo - pin is illustrative, not the photo\'s real location', 'state');
+    if (r.source === 'recorded_demo') badges += badge('Recorded AI demo - not a new analysis or current local report', 'state');
     let confBar = '';
     if (r.analysis_state === 'done') {
       badges += badge(r.category.replace(/_/g,' '), 'cat') + badge('severity: ' + r.severity, 'sev-' + r.severity);
       const pct = Math.round((r.confidence||0)*100);
       confBar = '<div class="confbar"><i style="width:' + pct + '%"></i></div><div class="conflabel">AI confidence ' + pct + '%</div>';
     } else if (r.analysis_state === 'pending') {
-      badges += badge('AI analysis pending - no key configured', 'state');
+      badges += badge(r.source === 'demo' ? 'Demo photo - not analyzed (no automatic AI call)' : 'AI not run - stored for review', 'state');
     } else if (r.analysis_state === 'disabled') {
       badges += badge('AI disabled on this deployment - stored for review', 'state');
     } else if (r.analysis_state === 'limited') {
