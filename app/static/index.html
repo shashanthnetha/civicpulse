@@ -294,7 +294,15 @@ document.getElementById('reportForm').onsubmit = async (e) => {
   btn.disabled = true; btn.classList.add('busy'); label.textContent = 'Uploading and analyzing...';
   msg.textContent = '';
   try {
-    const res = await fetch('/api/reports', { method: 'POST', body: fd });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 35000);
+    let res;
+    try {
+      res = await fetch('/api/reports', { method: 'POST', body: fd, signal: controller.signal });
+    } finally { clearTimeout(timer); }
+    if (!(res.headers.get('content-type') || '').includes('application/json')) {
+      throw new Error('Server returned HTTP ' + res.status + ' instead of report data. The upload may still finish. Refresh the dashboard before trying again.');
+    }
     const body = await res.json();
     if (!res.ok) throw new Error(body.detail || ('HTTP ' + res.status));
     msg.textContent = 'Report #' + body.id + ' submitted - now visible on the dashboard.';
@@ -304,7 +312,7 @@ document.getElementById('reportForm').onsubmit = async (e) => {
     preview.classList.remove('show'); previewImg.removeAttribute('src');
     refresh(body.id);
   } catch (err) {
-    msg.textContent = 'Failed: ' + err.message;
+    msg.textContent = err.name === 'AbortError' ? 'Upload took longer than 35 seconds. It may still finish. Refresh the dashboard before trying again.' : 'Failed: ' + err.message;
     msg.className = 'err';
   } finally {
     btn.disabled = false; btn.classList.remove('busy'); label.textContent = 'Submit report';
