@@ -72,7 +72,7 @@ def analyze_image(image_bytes: bytes, mime_type: str, note: str = "") -> TriageR
             model=config.GEMINI_MODEL,
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                PROMPT.format(note=note or "(none)"),
+                PROMPT.replace("{note}", note or "(none)"),
             ],
         )
         data = parse_triage_json(response.text)
