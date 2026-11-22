@@ -223,3 +223,40 @@ def test_public_deploy_ai_disabled_by_default():
     os.environ["GEMINI_API_KEY"] = ""
     importlib.reload(cfg)
     importlib.reload(m)
+
+
+def test_slow_ai_does_not_block_dashboard_reads(client, monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from app.triage import TriageResult
+    entered, release = threading.Event(), threading.Event()
+    def slow(*args):
+        entered.set()
+        release.wait(3)
+        return TriageResult(state="failed", error="test timeout")
+    monkeypatch.setattr(m, "analyze_with_cap", slow)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pending = pool.submit(submit, client)
+        try:
+            assert entered.wait(2)
+            response = pool.submit(client.get, "/api/stats").result(timeout=1)
+            assert response.status_code == 200
+        finally:
+            release.set()
+        assert pending.result(timeout=2).json()["analysis_state"] == "failed"
+
+
+def test_ai_wait_is_bounded_and_report_stored(client, monkeypatch):
+    import time
+    from app.triage import TriageResult
+    def slow(*args):
+        time.sleep(0.1)
+        return TriageResult(state="done", category="garbage", severity="low")
+    monkeypatch.setattr(m, "analyze_with_cap", slow)
+    monkeypatch.setattr(m, "AI_WAIT_SECONDS", 0.01)
+    response = submit(client)
+    assert response.status_code == 200
+    report = response.json()
+    assert report["analysis_state"] == "failed"
+    assert "timed out" in report["error"]
+    assert len(client.get("/api/reports").json()["reports"]) == 1
