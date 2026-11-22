@@ -67,7 +67,13 @@ def analyze_image(image_bytes: bytes, mime_type: str, note: str = "") -> TriageR
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=config.GEMINI_API_KEY)
+        client = genai.Client(
+            api_key=config.GEMINI_API_KEY,
+            http_options=types.HttpOptions(
+                timeout=20000,
+                retry_options=types.HttpRetryOptions(attempts=1),
+            ),
+        )
         response = client.models.generate_content(
             model=config.GEMINI_MODEL,
             contents=[
