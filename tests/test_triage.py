@@ -39,14 +39,10 @@ def test_no_key_returns_pending(monkeypatch):
 
 def test_api_error_returns_failed_not_fabricated(monkeypatch):
     monkeypatch.setattr("app.triage.config.GEMINI_API_KEY", "fake-key")
-    import sys, types
-    fake = types.ModuleType("google")
-    genai = types.ModuleType("google.genai")
-    def boom(*a, **k): raise RuntimeError("quota exceeded")
-    genai.Client = boom
-    genai.types = types.ModuleType("google.genai.types")
-    monkeypatch.setitem(sys.modules, "google.genai", genai)
-    monkeypatch.setitem(sys.modules, "google.genai.types", genai.types)
+    from google import genai
+    def boom(*a, **k):
+        raise RuntimeError("quota exceeded")
+    monkeypatch.setattr(genai, "Client", boom)
     r = analyze_image(b"img", "image/jpeg")
     assert r.state == "failed" and "quota" in r.error and r.category is None
 
@@ -57,14 +53,19 @@ def test_sdk_success_formats_prompt_and_parses_response(monkeypatch):
     from app import triage
     monkeypatch.setattr(triage.config, "GEMINI_API_KEY", "fake-key")
     calls = []
+    client_options = []
     def generate_content(**kwargs):
         calls.append(kwargs)
         return SimpleNamespace(text=VALID)
-    monkeypatch.setattr(genai, "Client", lambda **kwargs: SimpleNamespace(
-        models=SimpleNamespace(generate_content=generate_content)))
+    def make_client(**kwargs):
+        client_options.append(kwargs)
+        return SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    monkeypatch.setattr(genai, "Client", make_client)
     result = analyze_image(b"image", "image/jpeg", "Test note {literal}")
     assert result.state == "done"
     assert result.category == "road_damage"
     assert len(calls) == 1
+    assert client_options[0]["http_options"].timeout == 20000
+    assert client_options[0]["http_options"].retry_options.attempts == 1
     assert '"category"' in calls[0]["contents"][1]
     assert "Citizen note: Test note {literal}" in calls[0]["contents"][1]
