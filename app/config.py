@@ -14,7 +14,7 @@ def _load_dotenv(path=".env"):
 _load_dotenv()
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash").strip()
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "").strip()
 DB_PATH = os.environ.get("DB_PATH", "civicpulse.db")
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "5")) * 1024 * 1024
