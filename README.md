@@ -47,7 +47,7 @@ EXIF stripping, rate limiting, admin-token protection, honest no-key behavior.
 | Key | Purpose |
 |---|---|
 | GEMINI_API_KEY | Enables live AI photo analysis |
-| GEMINI_MODEL | Default `gemini-3.8-flash` (stable model code from the official Gemini API docs). Change if Google retires it. |
+| GEMINI_MODEL | Default `gemini-3.5-flash`. Verified live Nov 22, 2026: real photo classification succeeded on the free tier (no billing linked). Change if Google retires it. |
 | ADMIN_TOKEN | Required to enable status changes (acknowledge/resolve). Unset = status endpoint disabled. |
 | DB_PATH / UPLOAD_DIR | Storage locations |
 | MAX_UPLOAD_MB / RATE_LIMIT_PER_MINUTE | Abuse limits |
@@ -71,8 +71,9 @@ Render's free web service (render.yaml included). Steps once approved:
    the repo; Render reads render.yaml automatically.
 3. In the Render dashboard set GEMINI_API_KEY and ADMIN_TOKEN as env vars.
 4. Live AI on the public deployment stays DISABLED by default. Only after the
-   key's no-cost status is verified (free tier / no billing on the project),
-   set AI_LIVE_ENABLED=true in the dashboard to turn it on.
+   key's no-cost status is verified. For this project key, free tier with no
+   billing was confirmed by the key owner and a live test call on Nov 22, 2026,
+   so set AI_LIVE_ENABLED=true in the dashboard to turn it on.
 
 Verified free-tier limits (render.com/docs/free, Nov 2026): sleeps after
 15 min idle with about a 1-minute cold start (judges may see a loading page);
