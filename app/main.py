@@ -173,15 +173,34 @@ def seed_demo_if_empty():
         out = f"{uuid.uuid4().hex}.jpg"
         with open(os.path.join(config.UPLOAD_DIR, out), "wb") as f:
             f.write(clean)
-        # Boot seeding never makes AI calls (no surprise spend on deploy/restart).
+        # Boot seeding NEVER calls AI. This one result is a historical recording
+        # from the deployed public form on 22 Nov 2026 at 22:38:36 IST, not a
+        # fresh inference, current local hazard, or report filed with an authority.
+        # Input: demo/pothole.jpg, SHA256 aac0b3542eebcc40600d5cf8c55cf01493160fb0c1a18d5560b00ae2f5699b80
+        # Original response: https://civicpulse-k0go.onrender.com/api/reports
+        # Verified on commit ef665f2; full output preserved with demo evidence.
         result = triage.TriageResult(state="pending")
         authority = None
+        source = "demo"
+        created_at = {"pothole.jpg": 1795367283.844938, "garbage.jpg": 1795367284.0346038, "water_main.jpg": 1795367284.1331096}[fname]
+        if fname == "pothole.jpg":
+            result = triage.TriageResult(
+                state="done", category="road_damage", severity="high",
+                confidence=0.95,
+                rationale="Severe pavement deterioration with deep potholes poses a hazard to vehicles.",
+                model="gemini-3.5-flash",
+            )
+            desc = "Recorded AI demo from 22 Nov 2026, 22:38 IST. Sample photo only; not re-analyzed on restart or a current local report."
+            lat = lon = None
+            source = "recorded_demo"
+            created_at = 1795367316.9761746
+            authority = "Municipal roads/engineering department"
         db.insert_report(
-            conn, created_at=time.time(), description=desc, lat=lat, lon=lon,
+            conn, created_at=created_at, description=desc, lat=lat, lon=lon,
             image_path=out, analysis_state=result.state, category=result.category,
             severity=result.severity, confidence=result.confidence,
             rationale=result.rationale, suggested_authority=authority,
-            status="reported", model=result.model, error=result.error, source="demo",
+            status="reported", model=result.model, error=result.error, source=source,
         )
 
 
