@@ -49,3 +49,22 @@ def test_api_error_returns_failed_not_fabricated(monkeypatch):
     monkeypatch.setitem(sys.modules, "google.genai.types", genai.types)
     r = analyze_image(b"img", "image/jpeg")
     assert r.state == "failed" and "quota" in r.error and r.category is None
+
+
+def test_sdk_success_formats_prompt_and_parses_response(monkeypatch):
+    from types import SimpleNamespace
+    from google import genai
+    from app import triage
+    monkeypatch.setattr(triage.config, "GEMINI_API_KEY", "fake-key")
+    calls = []
+    def generate_content(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(text=VALID)
+    monkeypatch.setattr(genai, "Client", lambda **kwargs: SimpleNamespace(
+        models=SimpleNamespace(generate_content=generate_content)))
+    result = analyze_image(b"image", "image/jpeg", "Test note {literal}")
+    assert result.state == "done"
+    assert result.category == "road_damage"
+    assert len(calls) == 1
+    assert '"category"' in calls[0]["contents"][1]
+    assert "Citizen note: Test note {literal}" in calls[0]["contents"][1]
