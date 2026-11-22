@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 import time
@@ -7,11 +8,14 @@ from collections import defaultdict, deque
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from . import config, db, triage
 from .routing import DISCLAIMER, suggested_authority
+
+AI_WAIT_SECONDS = 25
 
 ALLOWED_MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
@@ -95,7 +99,17 @@ async def create_report(
     with open(os.path.join(config.UPLOAD_DIR, fname), "wb") as f:
         f.write(clean)
 
-    result = analyze_with_cap(clean, description)
+    # Never block the single event loop while the external model is waiting.
+    # The SDK has its own shorter timeout; this also bounds our HTTP response.
+    try:
+        result = await asyncio.wait_for(
+            run_in_threadpool(analyze_with_cap, clean, description),
+            timeout=AI_WAIT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        result = triage.TriageResult(
+            state="failed", error="AI analysis timed out; stored for manual review."
+        )
     authority = suggested_authority(result.category) if result.state == "done" else None
     rid = db.insert_report(
         get_conn(),
