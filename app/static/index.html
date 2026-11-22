@@ -6,63 +6,151 @@
 <title>CivicPulse - Civic Grievance Triage</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --text:#e2e8f0; --mut:#94a3b8; --acc:#38bdf8; }
+  :root {
+    --bg:#0b1120; --panel:#111a2e; --card:#16213a; --line:#263453; --line-soft:#1d2a47;
+    --text:#e8eefb; --mut:#8fa1c4; --acc:#2dd4bf; --acc2:#38bdf8;
+    --high:#ef4444; --med:#f59e0b; --low:#22c55e;
+  }
   * { box-sizing:border-box; margin:0; }
-  body { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
-  header { padding:20px 24px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:22px; } header h1 span { color:var(--acc); }
-  header p { color:var(--mut); font-size:13px; margin-top:4px; }
-  main { display:grid; grid-template-columns:360px 1fr; gap:20px; padding:20px 24px; max-width:1280px; margin:0 auto; }
-  @media (max-width:900px){ main{grid-template-columns:1fr;} }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
-  .card h2 { font-size:15px; margin-bottom:12px; }
-  label { display:block; font-size:12px; color:var(--mut); margin:10px 0 4px; }
-  input[type=file], textarea { width:100%; background:#0b1220; border:1px solid var(--line); border-radius:8px; color:var(--text); padding:8px; font-size:13px; }
-  textarea { min-height:70px; resize:vertical; }
-  button { background:var(--acc); color:#082f49; border:0; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; margin-top:12px; }
-  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); }
-  #formMsg { font-size:12px; margin-top:8px; min-height:16px; }
-  #stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .chip { background:#0b1220; border:1px solid var(--line); border-radius:999px; padding:4px 12px; font-size:12px; color:var(--mut); }
-  .chip b { color:var(--text); }
-  #map { height:260px; border-radius:12px; border:1px solid var(--line); margin-bottom:16px; }
-  .report { display:grid; grid-template-columns:96px 1fr; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
-  .report img { width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
-  .badges { display:flex; gap:6px; flex-wrap:wrap; margin:4px 0; }
-  .badge { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
-  .sev-high { background:#7f1d1d; border-color:#b91c1c; } .sev-medium { background:#78350f; border-color:#d97706; } .sev-low { background:#14532d; border-color:#16a34a; }
-  .state { color:var(--mut); }
+  html { scroll-behavior:smooth; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.45; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--acc2); outline-offset:2px; }
+
+  .hero { background:linear-gradient(135deg,#0e1a33 0%,#0f2b3a 55%,#0d3b3f 100%); border-bottom:1px solid var(--line); }
+  .hero-inner { max-width:1280px; margin:0 auto; padding:26px 24px 22px; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .brand h1 { font-size:28px; letter-spacing:-0.5px; font-weight:800; }
+  .brand h1 .pulse { color:var(--acc); }
+  .brand h1 .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--acc); margin-left:6px; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(45,212,191,.5)} 70%{box-shadow:0 0 0 9px rgba(45,212,191,0)} 100%{box-shadow:0 0 0 0 rgba(45,212,191,0)} }
+  .brand p { color:var(--mut); font-size:13.5px; margin-top:5px; max-width:560px; }
+  #heroStats { display:flex; gap:10px; flex-wrap:wrap; }
+  .hstat { background:rgba(11,17,32,.55); border:1px solid var(--line); border-radius:12px; padding:8px 14px; text-align:center; min-width:86px; }
+  .hstat b { display:block; font-size:20px; font-weight:800; }
+  .hstat span { font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.6px; }
+
+  main { display:grid; grid-template-columns:400px 1fr; gap:22px; padding:24px; max-width:1280px; margin:0 auto; align-items:start; }
+  @media (max-width:940px){ main{grid-template-columns:1fr; padding:16px;} }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:0 8px 24px rgba(2,6,18,.35); }
+  .card h2 { font-size:16px; font-weight:700; margin-bottom:4px; }
+  .card .sub { font-size:12.5px; color:var(--mut); margin-bottom:14px; }
+  .sticky { position:sticky; top:20px; }
+  @media (max-width:940px){ .sticky{position:static;} }
+
+  label { display:block; font-size:12px; font-weight:600; color:var(--mut); margin:14px 0 6px; text-transform:uppercase; letter-spacing:.5px; }
+  textarea { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; color:var(--text); padding:10px 12px; font-size:13.5px; min-height:76px; resize:vertical; font-family:inherit; }
+  textarea::placeholder { color:#5b6b8f; }
+  input[type=file] { display:none; }
+
+  .dropzone { border:1.5px dashed var(--line); background:var(--panel); border-radius:12px; padding:18px 14px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s; }
+  .dropzone:hover, .dropzone.drag { border-color:var(--acc); background:#0f1f33; }
+  .dropzone .dz-icon { font-size:24px; }
+  .dropzone .dz-text { font-size:13px; color:var(--mut); margin-top:6px; }
+  .dropzone .dz-text b { color:var(--acc); font-weight:600; }
+  .preview { display:none; margin-top:12px; position:relative; }
+  .preview.show { display:block; }
+  .preview img { width:100%; max-height:220px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
+  .preview .pmeta { display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:12px; color:var(--mut); }
+  .preview .remove { background:none; border:1px solid var(--line); color:var(--mut); border-radius:8px; padding:4px 10px; font-size:12px; cursor:pointer; margin:0; }
+  .preview .remove:hover { color:var(--high); border-color:var(--high); }
+
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; border:0; border-radius:10px; padding:12px 16px; font-size:14px; font-weight:700; cursor:pointer; margin-top:14px; transition:filter .15s, transform .05s; }
+  .btn:active { transform:translateY(1px); }
+  .btn-primary { background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#062a2b; }
+  .btn-primary:hover { filter:brightness(1.08); }
+  .btn-primary:disabled { opacity:.55; cursor:wait; filter:none; }
+  .btn-ghost { background:transparent; border:1px solid var(--line); color:var(--text); font-weight:600; }
+  .btn-ghost:hover { border-color:var(--acc2); color:var(--acc2); }
+  .spinner { width:15px; height:15px; border:2px solid rgba(6,42,43,.35); border-top-color:#062a2b; border-radius:50%; animation:spin .7s linear infinite; display:none; }
+  .btn-primary.busy .spinner { display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  #formMsg { font-size:12.5px; margin-top:10px; min-height:18px; }
+  #formMsg.ok { color:var(--acc); }
+  #formMsg.err { color:var(--high); }
   .meta { font-size:12px; color:var(--mut); }
-  .rat { font-size:13px; margin:4px 0; }
-  .route { font-size:12px; color:#fcd34d; }
-  footer { padding:16px 24px; color:var(--mut); font-size:12px; border-top:1px solid var(--line); max-width:1280px; margin:0 auto; }
+  #geoMsg { margin-top:6px; }
+
+  .panel-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .panel-head h2 { margin:0; }
+  #stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .chip { background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:5px 13px; font-size:12px; color:var(--mut); }
+  .chip b { color:var(--text); font-weight:700; }
+
+  #map { height:320px; border-radius:12px; border:1px solid var(--line); margin-bottom:8px; }
+  #mapNote { margin:0 0 16px; }
+
+  .report { display:grid; grid-template-columns:120px 1fr; gap:14px; padding:14px; border:1px solid var(--line-soft); border-left:4px solid var(--line); border-radius:12px; margin-bottom:12px; background:var(--panel); }
+  .report.sev-high { border-left-color:var(--high); }
+  .report.sev-medium { border-left-color:var(--med); }
+  .report.sev-low { border-left-color:var(--low); }
+  .report.flash { animation:flash 2.2s ease-out; }
+  @keyframes flash { 0%{background:#14352f; border-color:var(--acc);} 100%{background:var(--panel);} }
+  .report img.rphoto { width:120px; height:120px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
+  @media (max-width:560px){ .report{grid-template-columns:84px 1fr;} .report img.rphoto{width:84px;height:84px;} }
+  .badges { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .badge { font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px; border:1px solid var(--line); color:var(--text); background:var(--card); }
+  .badge.cat { background:#123; border-color:var(--acc2); color:var(--acc2); text-transform:capitalize; }
+  .sev-high { background:rgba(239,68,68,.16); border-color:var(--high); color:#fca5a5; }
+  .sev-medium { background:rgba(245,158,11,.14); border-color:var(--med); color:#fcd34d; }
+  .sev-low { background:rgba(34,197,94,.14); border-color:var(--low); color:#86efac; }
+  .state { color:var(--mut); }
+  .status-open, .status-reported { border-color:var(--acc2); color:var(--acc2); }
+  .status-acknowledged { border-color:var(--med); color:#fcd34d; }
+  .status-resolved { border-color:var(--low); color:#86efac; }
+  .rat { font-size:13.5px; margin:4px 0; }
+  .route { font-size:12.5px; color:#fcd34d; margin-top:4px; }
+  .confbar { height:5px; background:var(--line-soft); border-radius:99px; margin-top:8px; overflow:hidden; max-width:220px; }
+  .confbar i { display:block; height:100%; background:linear-gradient(90deg,var(--acc),var(--acc2)); border-radius:99px; }
+  .conflabel { font-size:11px; color:var(--mut); margin-top:4px; }
+  .empty { padding:24px 0; text-align:center; color:var(--mut); font-size:13px; }
+
+  footer { padding:18px 24px 26px; color:var(--mut); font-size:12px; border-top:1px solid var(--line); max-width:1280px; margin:0 auto; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Civic<span>Pulse</span></h1>
-  <p>AI-assisted civic grievance triage. Photo in, structured report out, public dashboard.</p>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brand">
+      <h1>Civic<span class="pulse">Pulse</span><span class="dot"></span></h1>
+      <p>AI-assisted civic grievance triage. Snap a photo of a civic issue; get a structured,
+         severity-ranked report on a public dashboard with suggested routing.</p>
+    </div>
+    <div id="heroStats"></div>
+  </div>
 </header>
 <main>
-  <section class="card">
+  <section class="card sticky">
     <h2>Report an issue</h2>
+    <p class="sub">A photo is required. Location is optional but helps route the report.</p>
     <form id="reportForm">
       <label for="image">Photo of the issue *</label>
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a photo of the issue">
+        <div class="dz-icon">&#128247;</div>
+        <div class="dz-text"><b>Choose a photo</b> or drop it here<br>JPG, PNG or WebP</div>
+      </div>
       <input type="file" id="image" accept="image/jpeg,image/png,image/webp" required>
+      <div class="preview" id="preview">
+        <img id="previewImg" alt="Selected photo preview">
+        <div class="pmeta"><span id="previewName"></span><button type="button" class="remove" id="removePhoto">Remove</button></div>
+      </div>
       <label for="description">Short note (optional)</label>
       <textarea id="description" maxlength="1000" placeholder="e.g. Deep pothole near the bus stop"></textarea>
-      <button type="button" class="ghost" id="geoBtn">Use my location (optional)</button>
+      <button type="button" class="btn btn-ghost" id="geoBtn">&#9673; Use my location (optional)</button>
       <div class="meta" id="geoMsg"></div>
-      <button type="submit">Submit report</button>
+      <button type="submit" class="btn btn-primary" id="submitBtn"><span class="spinner"></span><span id="submitLabel">Submit report</span></button>
       <div id="formMsg"></div>
     </form>
   </section>
   <section>
     <div class="card">
-      <h2>Public dashboard</h2>
+      <div class="panel-head">
+        <h2>Public dashboard</h2>
+        <span class="meta">Live &middot; updates on submit</span>
+      </div>
       <div id="stats"></div>
       <div id="map"></div>
-      <div class="meta" id="mapNote" style="margin:-8px 0 12px"></div>
+      <div class="meta" id="mapNote"></div>
       <div id="feed"></div>
     </div>
   </section>
@@ -79,8 +167,36 @@ const map = L.map('map').setView([17.385, 78.4867], 11);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
 let markers = L.layerGroup().addTo(map);
 
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('image');
+const preview = document.getElementById('preview');
+const previewImg = document.getElementById('previewImg');
+const previewName = document.getElementById('previewName');
+
+dz.onclick = () => fileInput.click();
+dz.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } };
+dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('drag'); };
+dz.ondragleave = () => dz.classList.remove('drag');
+dz.ondrop = (e) => {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; showPreview(); }
+};
+fileInput.onchange = showPreview;
+document.getElementById('removePhoto').onclick = () => {
+  fileInput.value = ''; preview.classList.remove('show'); previewImg.removeAttribute('src');
+};
+function showPreview() {
+  const f = fileInput.files[0];
+  if (!f) { preview.classList.remove('show'); return; }
+  previewImg.src = URL.createObjectURL(f);
+  previewName.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+  preview.classList.add('show');
+}
+
 document.getElementById('geoBtn').onclick = () => {
+  const geoMsg = document.getElementById('geoMsg');
   if (!navigator.geolocation) { geoMsg.textContent = 'Geolocation not available.'; return; }
+  geoMsg.textContent = 'Requesting location...';
   navigator.geolocation.getCurrentPosition(
     p => { lat = p.coords.latitude; lon = p.coords.longitude; geoMsg.textContent = 'Location attached (' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ')'; },
     () => { geoMsg.textContent = 'Location permission denied - submitting without it is fine.'; }
@@ -89,24 +205,38 @@ document.getElementById('geoBtn').onclick = () => {
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function badge(txt, cls){ return '<span class="badge ' + (cls||'') + '">' + esc(txt) + '</span>'; }
+const SEV_COLOR = { high:'#ef4444', medium:'#f59e0b', low:'#22c55e' };
 
-async function refresh() {
+async function refresh(flashId) {
   const [reportsRes, statsRes] = await Promise.all([fetch('/api/reports'), fetch('/api/stats')]);
   const data = await reportsRes.json(), stats = await statsRes.json();
-  const s = document.getElementById('stats');
-  s.innerHTML = '<span class="chip"><b>' + stats.total + '</b> reports</span>'
+
+  document.getElementById('stats').innerHTML = '<span class="chip"><b>' + stats.total + '</b> reports</span>'
     + Object.entries(stats.by_severity).map(([k,v]) => '<span class="chip">' + esc(k) + ': <b>' + v + '</b></span>').join('')
     + Object.entries(stats.by_status).map(([k,v]) => '<span class="chip">' + esc(k) + ': <b>' + v + '</b></span>').join('');
+
+  document.getElementById('heroStats').innerHTML =
+      '<div class="hstat"><b>' + stats.total + '</b><span>Reports</span></div>'
+    + '<div class="hstat"><b>' + (stats.by_severity.high || 0) + '</b><span>High sev</span></div>'
+    + '<div class="hstat"><b>' + ((stats.by_status.reported||0)+(stats.by_status.open||0)+(stats.by_status.acknowledged||0)) + '</b><span>Open</span></div>';
+
   markers.clearLayers();
   const bounds = [];
   const mapNote = document.getElementById('mapNote');
   const feed = document.getElementById('feed');
-  if (!data.reports.length) { feed.innerHTML = '<p class="meta" style="padding:12px 0">No reports yet. Submissions appear here.</p>'; return; }
+  if (!data.reports.length) {
+    feed.innerHTML = '<p class="empty">No reports yet. Submissions appear here within seconds.</p>';
+    mapNote.textContent = '';
+    return;
+  }
   feed.innerHTML = data.reports.map(r => {
     let badges = '';
     if (r.source === 'demo') badges += badge('demo photo - pin is illustrative, not the photo\'s real location', 'state');
+    let confBar = '';
     if (r.analysis_state === 'done') {
-      badges += badge(r.category.replace(/_/g,' ')) + badge('severity: ' + r.severity, 'sev-' + r.severity) + badge('confidence ' + Math.round((r.confidence||0)*100) + '%', 'state');
+      badges += badge(r.category.replace(/_/g,' '), 'cat') + badge('severity: ' + r.severity, 'sev-' + r.severity);
+      const pct = Math.round((r.confidence||0)*100);
+      confBar = '<div class="confbar"><i style="width:' + pct + '%"></i></div><div class="conflabel">AI confidence ' + pct + '%</div>';
     } else if (r.analysis_state === 'pending') {
       badges += badge('AI analysis pending - no key configured', 'state');
     } else if (r.analysis_state === 'disabled') {
@@ -116,19 +246,23 @@ async function refresh() {
     } else {
       badges += badge('AI analysis failed - stored for manual review', 'state');
     }
+    badges += badge('status: ' + r.status, 'status-' + r.status);
     if (r.lat != null && r.lon != null) {
-      const m = L.marker([r.lat, r.lon]).addTo(markers);
+      const color = SEV_COLOR[r.severity] || '#38bdf8';
+      const m = L.circleMarker([r.lat, r.lon], { radius:9, color:'#0b1120', weight:2, fillColor:color, fillOpacity:0.95 }).addTo(markers);
       m.bindPopup(esc((r.category||'report').replace(/_/g,' ')) + ' - ' + esc(r.status));
       bounds.push([r.lat, r.lon]);
     }
-    return '<div class="report">'
-      + '<img src="/uploads/' + esc(r.image_path) + '" alt="report photo">'
-      + '<div><div class="badges">' + badges + badge('status: ' + r.status, 'state') + '</div>'
+    const sevCls = r.analysis_state === 'done' ? ' sev-' + r.severity : '';
+    return '<div class="report' + sevCls + (r.id === flashId ? ' flash' : '') + '" id="report-' + r.id + '">'
+      + '<img class="rphoto" src="/uploads/' + esc(r.image_path) + '" alt="report photo">'
+      + '<div><div class="badges">' + badges + '</div>'
       + (r.rationale ? '<p class="rat">' + esc(r.rationale) + '</p>' : '')
+      + confBar
       + (r.description ? '<p class="meta">"' + esc(r.description) + '"</p>' : '')
       + (r.suggested_authority ? '<p class="route">Suggested routing (not filed): ' + esc(r.suggested_authority) + '</p>' : '')
-      + '<p class="meta">' + new Date(r.created_at*1000).toLocaleString()
-      + (r.lat != null && r.lon != null ? (r.source === 'demo' ? ' · illustrative demo location' : ' · location attached') : ' · no location attached') + '</p>'
+      + '<p class="meta" style="margin-top:6px">' + new Date(r.created_at*1000).toLocaleString()
+      + (r.lat != null && r.lon != null ? (r.source === 'demo' ? ' &middot; illustrative demo location' : ' &middot; location attached') : ' &middot; no location attached') + '</p>'
       + '</div></div>';
   }).join('');
   if (bounds.length) {
@@ -137,26 +271,42 @@ async function refresh() {
   } else {
     mapNote.textContent = 'Default map view - no report has a location yet. Pins appear when reports include one.';
   }
+  if (flashId) {
+    const el = document.getElementById('report-' + flashId);
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
 }
 
 document.getElementById('reportForm').onsubmit = async (e) => {
   e.preventDefault();
   const msg = document.getElementById('formMsg');
-  const file = document.getElementById('image').files[0];
-  if (!file) { msg.textContent = 'Pick a photo first.'; return; }
+  const btn = document.getElementById('submitBtn');
+  const label = document.getElementById('submitLabel');
+  msg.className = '';
+  const file = fileInput.files[0];
+  if (!file) { msg.textContent = 'Pick a photo first.'; msg.className = 'err'; return; }
   const fd = new FormData();
   fd.append('image', file);
   fd.append('description', document.getElementById('description').value);
   if (lat != null && lon != null) { fd.append('lat', lat); fd.append('lon', lon); }
-  msg.textContent = 'Uploading and analyzing...';
+  btn.disabled = true; btn.classList.add('busy'); label.textContent = 'Uploading and analyzing...';
+  msg.textContent = '';
   try {
     const res = await fetch('/api/reports', { method: 'POST', body: fd });
     const body = await res.json();
     if (!res.ok) throw new Error(body.detail || ('HTTP ' + res.status));
-    msg.textContent = 'Report #' + body.id + ' submitted.';
-    e.target.reset(); lat = lon = null; geoMsg.textContent = '';
-    refresh();
-  } catch (err) { msg.textContent = 'Failed: ' + err.message; }
+    msg.textContent = 'Report #' + body.id + ' submitted - now visible on the dashboard.';
+    msg.className = 'ok';
+    e.target.reset(); lat = lon = null;
+    document.getElementById('geoMsg').textContent = '';
+    preview.classList.remove('show'); previewImg.removeAttribute('src');
+    refresh(body.id);
+  } catch (err) {
+    msg.textContent = 'Failed: ' + err.message;
+    msg.className = 'err';
+  } finally {
+    btn.disabled = false; btn.classList.remove('busy'); label.textContent = 'Submit report';
+  }
 };
 refresh();
 </script>
