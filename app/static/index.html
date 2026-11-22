@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CivicPulse - Civic Grievance Triage</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --text:#e2e8f0; --mut:#94a3b8; --acc:#38bdf8; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 24px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:22px; } header h1 span { color:var(--acc); }
+  header p { color:var(--mut); font-size:13px; margin-top:4px; }
+  main { display:grid; grid-template-columns:360px 1fr; gap:20px; padding:20px 24px; max-width:1280px; margin:0 auto; }
+  @media (max-width:900px){ main{grid-template-columns:1fr;} }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card h2 { font-size:15px; margin-bottom:12px; }
+  label { display:block; font-size:12px; color:var(--mut); margin:10px 0 4px; }
+  input[type=file], textarea { width:100%; background:#0b1220; border:1px solid var(--line); border-radius:8px; color:var(--text); padding:8px; font-size:13px; }
+  textarea { min-height:70px; resize:vertical; }
+  button { background:var(--acc); color:#082f49; border:0; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; margin-top:12px; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); }
+  #formMsg { font-size:12px; margin-top:8px; min-height:16px; }
+  #stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .chip { background:#0b1220; border:1px solid var(--line); border-radius:999px; padding:4px 12px; font-size:12px; color:var(--mut); }
+  .chip b { color:var(--text); }
+  #map { height:260px; border-radius:12px; border:1px solid var(--line); margin-bottom:16px; }
+  .report { display:grid; grid-template-columns:96px 1fr; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
+  .report img { width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+  .badges { display:flex; gap:6px; flex-wrap:wrap; margin:4px 0; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
+  .sev-high { background:#7f1d1d; border-color:#b91c1c; } .sev-medium { background:#78350f; border-color:#d97706; } .sev-low { background:#14532d; border-color:#16a34a; }
+  .state { color:var(--mut); }
+  .meta { font-size:12px; color:var(--mut); }
+  .rat { font-size:13px; margin:4px 0; }
+  .route { font-size:12px; color:#fcd34d; }
+  footer { padding:16px 24px; color:var(--mut); font-size:12px; border-top:1px solid var(--line); max-width:1280px; margin:0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Civic<span>Pulse</span></h1>
+  <p>AI-assisted civic grievance triage. Photo in, structured report out, public dashboard.</p>
+</header>
+<main>
+  <section class="card">
+    <h2>Report an issue</h2>
+    <form id="reportForm">
+      <label for="image">Photo of the issue *</label>
+      <input type="file" id="image" accept="image/jpeg,image/png,image/webp" required>
+      <label for="description">Short note (optional)</label>
+      <textarea id="description" maxlength="1000" placeholder="e.g. Deep pothole near the bus stop"></textarea>
+      <button type="button" class="ghost" id="geoBtn">Use my location (optional)</button>
+      <div class="meta" id="geoMsg"></div>
+      <button type="submit">Submit report</button>
+      <div id="formMsg"></div>
+    </form>
+  </section>
+  <section>
+    <div class="card">
+      <h2>Public dashboard</h2>
+      <div id="stats"></div>
+      <div id="map"></div>
+      <div class="meta" id="mapNote" style="margin:-8px 0 12px"></div>
+      <div id="feed"></div>
+    </div>
+  </section>
+</main>
+<footer>
+  AI assessments are assistive estimates and can be wrong. Severity is not a safety certification.
+  "Suggested routing" names the type of authority that usually handles an issue; nothing is filed
+  with any authority by this demo. Photos are re-encoded and stripped of metadata on upload.
+</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let lat = null, lon = null;
+const map = L.map('map').setView([17.385, 78.4867], 11);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+let markers = L.layerGroup().addTo(map);
+
+document.getElementById('geoBtn').onclick = () => {
+  if (!navigator.geolocation) { geoMsg.textContent = 'Geolocation not available.'; return; }
+  navigator.geolocation.getCurrentPosition(
+    p => { lat = p.coords.latitude; lon = p.coords.longitude; geoMsg.textContent = 'Location attached (' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ')'; },
+    () => { geoMsg.textContent = 'Location permission denied - submitting without it is fine.'; }
+  );
+};
+
+function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function badge(txt, cls){ return '<span class="badge ' + (cls||'') + '">' + esc(txt) + '</span>'; }
+
+async function refresh() {
+  const [reportsRes, statsRes] = await Promise.all([fetch('/api/reports'), fetch('/api/stats')]);
+  const data = await reportsRes.json(), stats = await statsRes.json();
+  const s = document.getElementById('stats');
+  s.innerHTML = '<span class="chip"><b>' + stats.total + '</b> reports</span>'
+    + Object.entries(stats.by_severity).map(([k,v]) => '<span class="chip">' + esc(k) + ': <b>' + v + '</b></span>').join('')
+    + Object.entries(stats.by_status).map(([k,v]) => '<span class="chip">' + esc(k) + ': <b>' + v + '</b></span>').join('');
+  markers.clearLayers();
+  const bounds = [];
+  const mapNote = document.getElementById('mapNote');
+  const feed = document.getElementById('feed');
+  if (!data.reports.length) { feed.innerHTML = '<p class="meta" style="padding:12px 0">No reports yet. Submissions appear here.</p>'; return; }
+  feed.innerHTML = data.reports.map(r => {
+    let badges = '';
+    if (r.source === 'demo') badges += badge('demo photo - pin is illustrative, not the photo\'s real location', 'state');
+    if (r.analysis_state === 'done') {
+      badges += badge(r.category.replace(/_/g,' ')) + badge('severity: ' + r.severity, 'sev-' + r.severity) + badge('confidence ' + Math.round((r.confidence||0)*100) + '%', 'state');
+    } else if (r.analysis_state === 'pending') {
+      badges += badge('AI analysis pending - no key configured', 'state');
+    } else if (r.analysis_state === 'disabled') {
+      badges += badge('AI disabled on this deployment - stored for review', 'state');
+    } else if (r.analysis_state === 'limited') {
+      badges += badge('AI daily limit reached - stored for review', 'state');
+    } else {
+      badges += badge('AI analysis failed - stored for manual review', 'state');
+    }
+    if (r.lat != null && r.lon != null) {
+      const m = L.marker([r.lat, r.lon]).addTo(markers);
+      m.bindPopup(esc((r.category||'report').replace(/_/g,' ')) + ' - ' + esc(r.status));
+      bounds.push([r.lat, r.lon]);
+    }
+    return '<div class="report">'
+      + '<img src="/uploads/' + esc(r.image_path) + '" alt="report photo">'
+      + '<div><div class="badges">' + badges + badge('status: ' + r.status, 'state') + '</div>'
+      + (r.rationale ? '<p class="rat">' + esc(r.rationale) + '</p>' : '')
+      + (r.description ? '<p class="meta">"' + esc(r.description) + '"</p>' : '')
+      + (r.suggested_authority ? '<p class="route">Suggested routing (not filed): ' + esc(r.suggested_authority) + '</p>' : '')
+      + '<p class="meta">' + new Date(r.created_at*1000).toLocaleString()
+      + (r.lat != null && r.lon != null ? (r.source === 'demo' ? ' · illustrative demo location' : ' · location attached') : ' · no location attached') + '</p>'
+      + '</div></div>';
+  }).join('');
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+    mapNote.textContent = 'Map shows the ' + bounds.length + ' report(s) that have a location.';
+  } else {
+    mapNote.textContent = 'Default map view - no report has a location yet. Pins appear when reports include one.';
+  }
+}
+
+document.getElementById('reportForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('formMsg');
+  const file = document.getElementById('image').files[0];
+  if (!file) { msg.textContent = 'Pick a photo first.'; return; }
+  const fd = new FormData();
+  fd.append('image', file);
+  fd.append('description', document.getElementById('description').value);
+  if (lat != null && lon != null) { fd.append('lat', lat); fd.append('lon', lon); }
+  msg.textContent = 'Uploading and analyzing...';
+  try {
+    const res = await fetch('/api/reports', { method: 'POST', body: fd });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || ('HTTP ' + res.status));
+    msg.textContent = 'Report #' + body.id + ' submitted.';
+    e.target.reset(); lat = lon = null; geoMsg.textContent = '';
+    refresh();
+  } catch (err) { msg.textContent = 'Failed: ' + err.message; }
+};
+refresh();
+</script>
+</body>
+</html>

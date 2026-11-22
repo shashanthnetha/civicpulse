@@ -1,0 +1,16 @@
+# Render free web service config. Deploying requires Sha's approval and his
+# own Render account (sign-in not authorized yet).
+services:
+  - type: web
+    name: civicpulse
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SEED_DEMO
+        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false   # set in the Render dashboard, never in the repo
+      - key: ADMIN_TOKEN
+        sync: false   # set in the Render dashboard, never in the repo
