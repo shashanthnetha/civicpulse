@@ -136,7 +136,7 @@ def test_seed_on_boot_marks_demo_reports():
     with TestClient(m.app) as c:
         reports = c.get("/api/reports").json()["reports"]
     assert len(reports) == 3
-    assert all(r["source"] == "demo" for r in reports)
+    assert all(r["source"] in {"demo", "recorded_demo"} for r in reports)
     os.environ.pop("SEED_DEMO")
     importlib.reload(cfg)
     importlib.reload(m)
@@ -180,7 +180,16 @@ def test_boot_seeding_never_calls_ai():
     with TestClient(m.app) as c:
         reports = c.get("/api/reports").json()["reports"]
     assert len(reports) == 3
-    assert all(r["analysis_state"] == "pending" for r in reports)
+    recorded = [r for r in reports if r["source"] == "recorded_demo"]
+    assert len(recorded) == 1
+    r = recorded[0]
+    assert r["analysis_state"] == "done" and r["category"] == "road_damage"
+    assert r["severity"] == "high" and r["confidence"] == 0.95
+    assert r["model"] == "gemini-3.5-flash"
+    assert r["created_at"] == 1795367316.9761746
+    assert r["lat"] is None and r["lon"] is None
+    assert "not re-analyzed" in r["description"]
+    assert all(r["analysis_state"] == "pending" for r in reports if r["source"] == "demo")
     os.environ.pop("SEED_DEMO")
     os.environ["GEMINI_API_KEY"] = ""
     importlib.reload(cfg)
